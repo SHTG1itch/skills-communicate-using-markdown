@@ -1,0 +1,143 @@
+name: Step 10
+
+on:
+  push:
+    branches:
+      - start-blog
+    paths:
+      - "day-1.md"
+      - "project-guide/**"
+
+concurrency:
+  group: markdown-step-10-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+env:
+  STEP_11_FILE: ".github/steps/11-merge-your-pull-request.md"
+
+jobs:
+  find_exercise:
+    name: Find Exercise Issue
+    if: ${{ !github.event.repository.is_template }}
+    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.6.0
+
+  active_step:
+    needs: [find_exercise]
+    uses: ./.github/workflows/check-active-step.yml
+    with:
+      issue-number: ${{ needs.find_exercise.outputs.issue-number }}
+      step: 10
+
+  check_step_work:
+    name: Check step work
+    runs-on: ubuntu-latest
+    needs: [find_exercise, active_step]
+    if: needs.active_step.outputs.active == 'true'
+    env:
+      ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
+
+    steps:
+      - name: Checkout course tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: v0.6.0
+
+      - name: Update comment - checking work
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout student submission
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: submission
+          persist-credentials: false
+
+      - name: Validate lesson requirements
+        id: validation
+        continue-on-error: true
+        run: node .github/scripts/check-step.cjs 10 submission step-results.md
+
+      - name: Create comment - step results
+        if: always() && steps.validation.outcome != 'skipped'
+        run: gh issue comment "$ISSUE_URL" --body-file step-results.md --edit-last
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail job if validation failed
+        if: steps.validation.outcome != 'success'
+        run: exit 1
+
+      - name: Build message - step finished
+        id: build-message-step-finish
+        uses: skills/action-text-variables@v2
+        with:
+          template-file: exercise-toolkit/markdown-templates/step-feedback/step-finished-prepare-next-step.md
+          template-vars: |
+            next_step_number: 11
+
+      - name: Update comment - step finished
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body "$ISSUE_BODY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_BODY: ${{ steps.build-message-step-finish.outputs.updated-text }}
+
+  post_next_step_content:
+    name: Post next step content
+    needs: [find_exercise, check_step_work]
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
+
+    steps:
+      - name: Checkout course tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: v0.6.0
+
+      - name: Create comment - add step content
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file "$STEP_11_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create comment - watching for progress
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file exercise-toolkit/markdown-templates/step-feedback/watching-for-progress.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Disable current workflow and enable next one
+        run: |
+          gh workflow enable "Step 11"
+          gh workflow disable "Step 10"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,7 @@
 # Communicate using Markdown
 
+Practice Markdown, LaTeX, and professional README writing in eleven guided steps. See the [course outline and maintainer guide](COURSE.md).
+
 <img src="https://octodex.github.com/images/Professortocat_v2.png" align="right" height="200px" />
 
 Hey SHTG1itch!
