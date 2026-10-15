@@ -57,4 +57,6 @@ The validator exits nonzero on failure and writes a Markdown feedback table. On 
 
 The **Course tests** workflow runs these tests on GitHub and validates all workflow files with actionlint 1.7.12, downloaded from its official release and verified against its SHA-256 checksum. It can also be run manually from Actions.
 
+For a read-only runtime check, run **Course tests** manually and set **verify-step** to the lesson number currently displayed in the exercise issue. This also exercises the real toolkit issue lookup and shared active-lesson workflow, then asserts that the requested lesson is active. The default value `0` runs only lint and unit tests. This check does not submit student work, post comments, unlock lessons, or complete the course.
+
 Checks intentionally use a small subset of Markdown: ATX headings, fenced code blocks, inline Markdown links, and pipe tables as taught in the lessons. They do not render MathJax, fetch external links, or assess prose quality. Section checks require at least eight words to encourage explanations, but a reviewer must still assess accuracy. LaTeX checks verify the taught delimiters and fraction syntax, not arbitrary TeX correctness. Human review should verify setup, output, external links, image descriptions, and honest feature claims.
