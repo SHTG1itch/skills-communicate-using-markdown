@@ -21,7 +21,7 @@ jobs:
     uses: skills/exercise-toolkit/.github/workflows/start-exercise.yml@v0.6.0
     with:
       exercise-title: "Communicate using Markdown"
-      intro-message: "Organize ideas and collaborate using Markdown, a lightweight language for text formatting."
+      intro-message: "Practice Markdown and LaTeX, then build a useful project README with setup, usage, contribution, and support instructions across eleven guided steps."
 
   post_next_step_content:
     name: Post next step content

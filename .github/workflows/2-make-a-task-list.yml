@@ -6,6 +6,11 @@ on:
       - start-blog
     paths:
       - "day-1.md"
+      - "project-guide/**"
+
+concurrency:
+  group: markdown-step-2-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -18,18 +23,30 @@ env:
 jobs:
   find_exercise:
     name: Find Exercise Issue
+    if: ${{ !github.event.repository.is_template }}
     uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.6.0
+
+  active_step:
+    needs: [find_exercise]
+    uses: ./.github/workflows/check-active-step.yml
+    with:
+      issue-number: ${{ needs.find_exercise.outputs.issue-number }}
+      step: 2
 
   check_step_work:
     name: Check step work
     runs-on: ubuntu-latest
-    needs: [find_exercise]
+    needs: [find_exercise, active_step]
+    if: needs.active_step.outputs.active == 'true'
     env:
       ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
 
     steps:
-      - name: Checkout
+      - name: Checkout course tooling
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
       - name: Get response templates
         uses: actions/checkout@v4
@@ -45,44 +62,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # START: Check practical exercise
+      - name: Checkout student submission
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: submission
+          persist-credentials: false
 
-      - name: Check for task list
-        id: check-task-list
+      - name: Validate lesson requirements
+        id: validation
         continue-on-error: true
-        uses: skills/action-keyphrase-checker@v1
-        with:
-          text-file: day-1.md
-          keyphrase: " [ ] "
-          case-sensitive: false
-          minimum-occurrences: 1
-
-      - name: Build message - step results
-        id: build-message-step-results
-        uses: skills/action-text-variables@v2
-        with:
-          template-file: exercise-toolkit/markdown-templates/step-feedback/step-results-table.md
-          template-vars: |
-            step_number: 2
-            passed: ${{ !contains(steps.*.outcome, 'failure') }}
-            results_table:
-              - description: "Task list added to day-1.md file"
-                passed: ${{ steps.check-task-list.outcome == 'success' }}
+        run: node .github/scripts/check-step.cjs 2 submission step-results.md
 
       - name: Create comment - step results
-        run: |
-          gh issue comment "$ISSUE_URL" \
-            --body "$COMMENT_BODY" \
-            --edit-last
+        if: always() && steps.validation.outcome != 'skipped'
+        run: gh issue comment "$ISSUE_URL" --body-file step-results.md --edit-last
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMMENT_BODY: ${{ steps.build-message-step-results.outputs.updated-text }}
 
-      - name: Fail job if not all checks passed
-        if: contains(steps.*.outcome, 'failure')
+      - name: Fail job if validation failed
+        if: steps.validation.outcome != 'success'
         run: exit 1
-
-      # END: Check practical exercise
 
       - name: Build message - step finished
         id: build-message-step-finish
@@ -108,8 +108,11 @@ jobs:
       ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
 
     steps:
-      - name: Checkout
+      - name: Checkout course tooling
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
       - name: Get response templates
         uses: actions/checkout@v4
@@ -134,7 +137,7 @@ jobs:
 
       - name: Disable current workflow and enable next one
         run: |
-          gh workflow disable "Step 2"
           gh workflow enable "Step 3"
+          gh workflow disable "Step 2"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

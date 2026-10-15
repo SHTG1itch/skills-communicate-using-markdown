@@ -1,0 +1,113 @@
+name: Step 11
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+concurrency:
+  group: markdown-final-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+env:
+  REVIEW_FILE: ".github/steps/x-review.md"
+
+jobs:
+  find_exercise:
+    name: Find Exercise Issue
+    if: |
+      !github.event.repository.is_template &&
+      github.head_ref == 'start-blog' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'closed' || github.event.pull_request.merged == true)
+    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.6.0
+
+  active_step:
+    needs: [find_exercise]
+    uses: ./.github/workflows/check-active-step.yml
+    with:
+      issue-number: ${{ needs.find_exercise.outputs.issue-number }}
+      step: 11
+
+  validate_final_submission:
+    name: Validate final submission
+    needs: [active_step]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require completion of the preceding lessons
+        if: needs.active_step.outputs.active != 'true'
+        run: |
+          echo "Complete Steps 1-10 and wait for the Step 11 lesson before submitting this pull request."
+          exit 1
+
+      - name: Checkout course tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Checkout final submission
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merged && github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}
+          path: submission
+          persist-credentials: false
+
+      - name: Validate all lessons
+        run: node .github/scripts/check-step.cjs 10 submission final-results.md
+
+  post_review_content:
+    name: Post review content
+    needs: [find_exercise, validate_final_submission]
+    runs-on: ubuntu-latest
+    if: |
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+    env:
+      ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Create comment - add step content
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file "$REVIEW_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finish_exercise:
+    name: Finish Exercise
+    needs: [find_exercise, post_review_content]
+    uses: skills/exercise-toolkit/.github/workflows/finish-exercise.yml@v0.6.0
+    with:
+      issue-url: ${{ needs.find_exercise.outputs.issue-url }}
+      exercise-title: "Communicate using Markdown"
+
+  disable_workflow:
+    name: Disable this workflow
+    needs: [find_exercise, finish_exercise]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Disable current workflow
+        run: gh workflow disable "${{github.workflow}}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,67 @@
+name: Course tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      verify-step:
+        description: 'Also verify the live exercise issue and active lesson (0 skips this check)'
+        type: number
+        default: 0
+  push:
+    branches: [main]
+    paths: ['.github/**', 'COURSE.md']
+  pull_request:
+    paths: ['.github/**', 'COURSE.md']
+
+permissions:
+  contents: read
+  issues: read
+  actions: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate GitHub Actions workflows
+        env:
+          ACTIONLINT_VERSION: '1.7.12'
+          ACTIONLINT_SHA256: '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$archive"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes=
+      - run: node --test .github/scripts/check-step.test.cjs
+
+  find_exercise:
+    if: github.event_name == 'workflow_dispatch' && inputs.verify-step > 0
+    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.6.0
+
+  verify_active_lesson:
+    needs: [find_exercise]
+    uses: ./.github/workflows/check-active-step.yml
+    with:
+      issue-number: ${{ needs.find_exercise.outputs.issue-number }}
+      step: ${{ inputs.verify-step }}
+
+  verify_runtime_result:
+    needs: [verify_active_lesson]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm the live active lesson
+        env:
+          ACTIVE: ${{ needs.verify_active_lesson.outputs.active }}
+        run: |
+          if [ "$ACTIVE" != 'true' ]; then
+            echo 'The requested lesson is not the current lesson in the live exercise issue.'
+            exit 1
+          fi
+          echo 'Live issue lookup and active-lesson gating passed.'
