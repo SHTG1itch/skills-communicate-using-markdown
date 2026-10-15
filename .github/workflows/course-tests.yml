@@ -50,7 +50,7 @@ jobs:
     uses: ./.github/workflows/check-active-step.yml
     with:
       issue-number: ${{ needs.find_exercise.outputs.issue-number }}
-      step: ${{ inputs.verify-step }}
+      step: ${{ fromJSON(inputs.verify-step) }}
 
   verify_runtime_result:
     needs: [verify_active_lesson]

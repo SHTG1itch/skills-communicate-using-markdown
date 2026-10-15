@@ -198,6 +198,8 @@ test('numbered workflows have matching lessons and correct next-step wiring', ()
   assert.match(final, /needs: \[find_exercise, validate_final_submission\]/);
   assert.match(final, /github.event.pull_request.merged == true/);
   assert.match(final, /needs: \[find_exercise, finish_exercise\]/);
+  const runtime = fs.readFileSync(path.join(workflows, 'course-tests.yml'), 'utf8');
+  assert.match(runtime, /step: \$\{\{ fromJSON\(inputs.verify-step\) \}\}/);
   for (const [, job, body] of final.matchAll(/^  (\w+):\r?\n([^]*?)(?=^  \w+:|$(?![^]))/gm)) {
     assert.ok(!body.match(new RegExp(`needs: \\[[^\\]]*\\b${job}\\b`)), `${job} cannot depend on itself`);
   }
