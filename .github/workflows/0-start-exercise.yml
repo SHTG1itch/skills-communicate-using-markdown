@@ -50,6 +50,11 @@ jobs:
             login: ${{ github.actor }}
             full_repo_name: ${{ github.repository }}
 
+      - name: Enable next step workflow before publishing the lesson
+        run: gh workflow enable "Step 1"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create comment - add step content
         run: |
           gh issue comment "$ISSUE_URL" \
@@ -62,11 +67,5 @@ jobs:
         run: |
           gh issue comment "$ISSUE_URL" \
             --body-file "exercise-toolkit/markdown-templates/step-feedback/watching-for-progress.md"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Enable next step workflow
-        run: |
-          gh workflow enable "Step 1"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

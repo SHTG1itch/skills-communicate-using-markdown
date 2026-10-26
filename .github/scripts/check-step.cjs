@@ -25,12 +25,23 @@ function parse(text) {
   return { prose: prose.join('\n'), blocks, closed: !fence };
 }
 
+function headings(prose) {
+  return [...prose.matchAll(/^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/gm)]
+    .filter(h => h[2].trim() && !/^#+$/.test(h[2].trim()));
+}
+
 function section(prose, name) {
   prose = prose.replace(/\r\n/g, '\n');
-  const headings = [...parse(prose).prose.matchAll(/^## +(.+?) *#*[ \t]*$/gm)];
-  const index = headings.findIndex(h => h[1].trim().toLowerCase() === name.toLowerCase());
+  const sections = headings(parse(prose).prose).filter(h => h[1].length <= 2);
+  const index = sections.findIndex(h => h[1] === '##' && h[2].trim().toLowerCase() === name.toLowerCase());
   if (index < 0) return '';
-  return prose.slice(headings[index].index + headings[index][0].length, headings[index + 1]?.index);
+  return prose.slice(sections[index].index + sections[index][0].length, sections[index + 1]?.index);
+}
+
+function imageAttribute(tag, name) {
+  const attribute = [...tag.matchAll(/([^\s=<>/'"]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)]
+    .find(m => m[1].toLowerCase() === name);
+  return (attribute?.[2] ?? attribute?.[3] ?? '').trim();
 }
 
 function evaluate(step, root) {
@@ -44,47 +55,51 @@ function evaluate(step, root) {
     const relative = path.relative(fs.realpathSync(root), real);
     return relative.startsWith('..') || path.isAbsolute(relative) || !fs.statSync(real).isFile() ? '' : fs.readFileSync(real, 'utf8');
   };
-  const journal = parse(read('day-1.md'));
+  const journalText = read('day-1.md');
+  const journal = parse(journalText);
   const readmeText = read('project-guide/README.md');
   const readme = parse(readmeText);
   const meaningful = text => text.replace(/[`*_#\[\]()>|$\\-]/g, '').trim().split(/\s+/).filter(Boolean).length >= 8;
   const nonempty = name => meaningful(section(readme.prose, name));
-  const command = name => {
+  const shellBlocks = name => {
     const rawSection = section(readmeText, name);
-    return parse(rawSection).blocks.some(b => /^(bash|sh|shell|powershell|console)$/i.test(b.language) && b.body.trim());
+    return parse(rawSection).blocks.filter(b => /^(bash|sh|shell|powershell|console)$/i.test(b.language) && b.body.trim());
   };
+  const command = name => shellBlocks(name).length > 0;
 
   if (step >= 1) {
+    const titles = headings(journal.prose);
     check('day-1.md has one level 1 heading and at least two level 2 headings',
-      (journal.prose.match(/^# +\S.*$/gm) || []).length === 1 && (journal.prose.match(/^## +\S.*$/gm) || []).length >= 2);
+      titles.filter(h => h[1] === '#').length === 1 && titles.filter(h => h[1] === '##').length >= 2);
   }
-  if (step >= 2) check('Journal includes an unchecked task', /^\s*[-*+] +\[ \] +\S/m.test(journal.prose));
+  if (step >= 2) check('Journal includes an unchecked task', /^[ \t]*[-*+] +\[ \] +\S/m.test(journal.prose));
   if (step >= 3) check('Journal includes a closed, nonempty code block with a language',
     journal.closed && journal.blocks.some(b => b.language && b.body.trim()));
   if (step >= 4) check('Journal has an HTML image with alternative text and a source',
-    /<img\b(?=[^>]*\balt=["'][^"']+)[^>]*\bsrc=["'][^"']+["'][^>]*>/i.test(journal.prose));
+    [...journal.prose.matchAll(/<img\b[^>]*>/gi)].some(([tag]) => imageAttribute(tag, 'alt') && imageAttribute(tag, 'src')));
   if (step >= 5) {
     const math = section(journal.prose, 'Learning metrics').replace(/`+[^`\n]*`+/g, '');
     check('Learning metrics contains inline math with a subscript or superscript',
-      /(?<![\\$])\$(?!\$)([^$\n]+)\$(?!\$)/g.test(math) && /\$[^$\n]*[_^][^$\n]*\$/.test(math));
+      [...math.matchAll(/(?<![\\$])\$(?!\$)([^$\n]+)\$(?!\$)/g)].some(m => /[_^]/.test(m[1])));
     check('Learning metrics contains display math with a LaTeX fraction',
       /\$\$\s*\n[^]*?\\frac\{[^{}]+\}\{[^{}]+\}[^]*?\n\s*\$\$/.test(math)
-      || journal.blocks.some(b => b.language === 'math' && /\\frac\{[^{}]+\}\{[^{}]+\}/.test(b.body)));
+      || parse(section(journalText, 'Learning metrics')).blocks.some(b => b.language === 'math' && /\\frac\{[^{}]+\}\{[^{}]+\}/.test(b.body)));
     check('Learning metrics explains the variables and result in words', meaningful(math.replace(/\$\$[^]*?\$\$/g, '').replace(/\$[^$]*\$/g, '')));
   }
   if (step >= 6) {
-    check('project-guide/README.md has exactly one project title', (readme.prose.match(/^# +\S.*$/gm) || []).length === 1);
+    check('project-guide/README.md has exactly one project title', headings(readme.prose).filter(h => h[1] === '#').length === 1);
     check('Overview explains the project and its audience (at least eight words)', nonempty('Overview'));
-    check('Features includes at least three bullet points', (section(readme.prose, 'Features').match(/^\s*[-*+] +\S/gm) || []).length >= 3);
+    check('Features includes at least three bullet points', (section(readme.prose, 'Features').match(/^[ \t]*[-*+] +\S/gm) || []).length >= 3);
     check('Contents links to Overview, Features, Installation and Usage', ['Overview', 'Features', 'Installation', 'Usage'].every(name =>
       new RegExp(`\\[[^\\]]+\\]\\(#${name.toLowerCase()}\\)`, 'i').test(section(readme.prose, 'Contents'))));
-    check('Installation and Usage headings exist', ['Installation', 'Usage'].every(name => new RegExp(`^## +${name} *$`, 'mi').test(readme.prose)));
+    check('Installation and Usage headings exist', ['Installation', 'Usage'].every(name =>
+      headings(readme.prose).some(h => h[1] === '##' && h[2].toLowerCase() === name.toLowerCase())));
   }
   if (step >= 7) {
     check('Prerequisites describes required tools and access', nonempty('Prerequisites'));
     check('Installation explains setup and includes a shell code block', nonempty('Installation') && command('Installation'));
     check('Installation includes git clone and cd commands',
-      parse(section(readmeText, 'Installation')).blocks.some(b => /^git clone +\S+/m.test(b.body) && /^cd +\S+/m.test(b.body)));
+      shellBlocks('Installation').some(b => /^[ \t]*git clone +\S+/m.test(b.body) && /^[ \t]*cd +\S+/m.test(b.body)));
   }
   if (step >= 8) {
     check('Usage provides instructions and a shell command', nonempty('Usage') && command('Usage'));
@@ -102,15 +117,15 @@ function evaluate(step, root) {
   if (step >= 10) {
     check('Troubleshooting explains at least one problem and its solution', nonempty('Troubleshooting'));
     check('Review checklist contains at least four completed tasks and no unfinished tasks',
-      (section(readme.prose, 'Review checklist').match(/^\s*[-*+] +\[[xX]\] +\S/gm) || []).length >= 4 && !/^\s*[-*+] +\[ \]/m.test(section(readme.prose, 'Review checklist')));
+      (section(readme.prose, 'Review checklist').match(/^[ \t]*[-*+] +\[[xX]\] +\S/gm) || []).length >= 4 && !/^[ \t]*[-*+] +\[ \]/m.test(section(readme.prose, 'Review checklist')));
     check('All README code fences are closed', readme.closed);
     check('README contains no TODO, TBD, example.com or replacement placeholders', !/\b(TODO|TBD)\b|example\.com|YOUR[-_ ](?:NAME|USER(?:NAME)?|REPO(?:SITORY)?)|<replace[^>]*>/i.test(readmeText));
     const links = [...readme.prose.matchAll(/!?\[([^\]]*)\]\(([^)\s]+)\)/g)];
-    const headings = [...readme.prose.matchAll(/^#{1,6} +(.+)$/gm)].map(m => m[1].trim().toLowerCase().replace(/[^\p{L}\p{N}_ -]/gu, '').replace(/ /g, '-'));
+    const anchors = headings(readme.prose).map(m => m[2].trim().toLowerCase().replace(/[^\p{L}\p{N}_ -]/gu, '').replace(/ /g, '-'));
     const broken = links.filter(([, label, target]) => {
       if (!label.trim()) return true;
       if (/^https?:\/\//.test(target) || /^mailto:/.test(target)) return false;
-      if (target.startsWith('#')) return !headings.includes(target.slice(1));
+      if (target.startsWith('#')) return !anchors.includes(target.slice(1));
       let decoded;
       try { decoded = decodeURIComponent(target.split('#')[0]); } catch { return true; }
       const local = path.resolve(root, 'project-guide', decoded);
@@ -118,7 +133,7 @@ function evaluate(step, root) {
       return relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(local);
     });
     check('README links have descriptive labels and existing local targets', links.length > 0 && broken.length === 0);
-    check('HTML images in README have nonempty alternative text', [...readme.prose.matchAll(/<img\b[^>]*>/gi)].every(m => /\balt=["'][^"']+["']/i.test(m[0])));
+    check('HTML images in README have nonempty alternative text', [...readme.prose.matchAll(/<img\b[^>]*>/gi)].every(([tag]) => imageAttribute(tag, 'alt')));
   }
   return results;
 }

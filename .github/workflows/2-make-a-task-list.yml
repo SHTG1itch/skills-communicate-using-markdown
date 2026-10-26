@@ -76,7 +76,7 @@ jobs:
 
       - name: Create comment - step results
         if: always() && steps.validation.outcome != 'skipped'
-        run: gh issue comment "$ISSUE_URL" --body-file step-results.md --edit-last
+        run: gh issue comment "$ISSUE_URL" --body-file step-results.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -121,6 +121,11 @@ jobs:
           path: exercise-toolkit
           ref: v0.6.0
 
+      - name: Enable next step workflow before publishing the lesson
+        run: gh workflow enable "Step 3"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create comment - add step content
         run: |
           gh issue comment "$ISSUE_URL" \
@@ -135,9 +140,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Disable current workflow and enable next one
-        run: |
-          gh workflow enable "Step 3"
-          gh workflow disable "Step 2"
+      - name: Disable current workflow
+        run: gh workflow disable "Step 2"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

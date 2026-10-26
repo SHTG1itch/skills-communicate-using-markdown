@@ -6,6 +6,9 @@ Technical READMEs sometimes need an equation, for example a success rate or algo
 
 Use `$...$` inside a sentence. Use `$$` on separate lines for a display equation, or a fenced block with the language `math`. Ordinary `latex` code fences show source code instead of rendering math.
 
+> [!NOTE]
+> Equations may not render in the file editor's **Preview** tab. Commit your changes to **start-blog**, then open the committed `day-1.md` file on that branch to see the rendered equations. You do not need to merge into `main`.
+
 ```md
 After day $d_1$, I completed $c^2$ practice tasks.
 
@@ -23,8 +26,9 @@ $$
 1. Under it, write a sentence containing inline math with a subscript or superscript, such as `$d_1$`.
 1. Add a display equation containing `\frac{c}{t}` using `$$` or a `math` code fence. For example, calculate the percentage of practice tasks completed.
 1. Explain what `c`, `t`, and `p` represent and give an example result in words (at least eight words). Avoid dividing by zero.
-1. Preview the file on GitHub. Confirm that both expressions render and that the explanation makes sense without seeing the equation.
-1. Commit to **start-blog** and return to this issue for feedback. Fix any failed checks and commit again; wait for Step 6 before continuing.
+1. Preview the file on GitHub to check the structure and explanation. If equations still appear as source text, check their dollar signs and braces and continue to commit.
+1. Commit to **start-blog**, then open the committed file on that branch. Confirm both expressions render; edit and commit again if needed.
+1. Return to this issue for feedback. Fix any failed checks and commit again; wait for Step 6 before continuing.
 
 <details>
 <summary>Having trouble? 🤷</summary>
