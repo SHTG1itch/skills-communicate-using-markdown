@@ -35,12 +35,17 @@ A learning journal for students practicing technical communication with GitHub M
 
 ### :keyboard: Activity: Build your README outline
 
-1. On **start-blog**, create **project-guide/README.md**. The slash creates a folder in GitHub's file editor.
+> [!IMPORTANT]
+> The repository's **Code** tab may open on `main`. Select **start-blog** in the branch dropdown before creating or editing this file. Commits to `main` do not run the lesson checks or unlock Step 7.
+
+1. Select **start-blog** in the branch dropdown, then create **project-guide/README.md**. The slash creates a folder in GitHub's file editor. If the file already exists, edit it.
 1. Keep the root `README.md`: the exercise bot uses and replaces that file. Your project README lives separately so your work survives course completion.
 1. Add exactly one project title and the headings **Overview**, **Features**, **Contents**, **Installation**, and **Usage**.
 1. Write an Overview of at least eight words explaining the project, its audience, and its value. Use your own wording.
 1. Add at least three specific feature bullets and the four contents links shown above. Leave Installation and Usage empty until their lessons.
 1. Preview the outline and test the contents links.
-1. Commit to **start-blog**. Return to the issue and wait for Step 7.
+1. In **Commit changes**, confirm the destination is **start-blog**. Return to the issue and wait for Step 7.
+
+If nothing happens, open **Actions** and look for a **Step 6** run for your commit. If you accidentally committed to `main`, switch to **start-blog** and create or edit `project-guide/README.md` there with your outline, then commit again. Your work on `main` does not need to be deleted.
 
 The checks require these section names so feedback can point to the right place. In other projects, choose names and a section order that fit your readers. See GitHub's [README guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes).
